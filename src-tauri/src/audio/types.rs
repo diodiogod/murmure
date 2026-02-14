@@ -13,6 +13,8 @@ pub struct AudioState {
     pub limit_reached: std::sync::Arc<AtomicBool>,
     /// Cached audio input device to avoid re-enumerating devices on each recording
     pub cached_device: Mutex<Option<Device>>,
+    /// Set by second click within double-click window to invert send_enter
+    pub invert_enter_signal: std::sync::Arc<AtomicBool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,6 +45,7 @@ impl AudioState {
             recording_mode: std::sync::atomic::AtomicU8::new(RecordingMode::Standard as u8),
             limit_reached: std::sync::Arc::new(AtomicBool::new(false)),
             cached_device: Mutex::new(None),
+            invert_enter_signal: std::sync::Arc::new(AtomicBool::new(false)),
         }
     }
 

@@ -5,11 +5,19 @@ use log::debug;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 pub fn paste(text: &str, app_handle: &tauri::AppHandle) -> Result<(), String> {
-    paste_with_delay(text, app_handle, 100, true)
+    paste_with_delay(text, app_handle, 100, true, None)
+}
+
+pub fn paste_with_enter_override(
+    text: &str,
+    app_handle: &tauri::AppHandle,
+    send_enter: bool,
+) -> Result<(), String> {
+    paste_with_delay(text, app_handle, 100, true, Some(send_enter))
 }
 
 pub fn paste_last_transcript(text: &str, app_handle: &tauri::AppHandle) -> Result<(), String> {
-    paste_with_delay(text, app_handle, 400, false)
+    paste_with_delay(text, app_handle, 400, false, None)
 }
 
 #[allow(unused_variables)]
@@ -18,6 +26,7 @@ fn paste_with_delay(
     app_handle: &tauri::AppHandle,
     macos_delay_ms: u64,
     send_enter: bool,
+    enter_override: Option<bool>,
 ) -> Result<(), String> {
     let app_settings = settings::load_settings(app_handle);
 
@@ -40,7 +49,11 @@ fn paste_with_delay(
     #[cfg(target_os = "windows")]
     std::thread::sleep(std::time::Duration::from_millis(50));
 
-    send_paste(&app_settings.paste_method, send_enter && app_settings.auto_send_enter)?;
+    let effective_send_enter = match enter_override {
+        Some(v) => v,
+        None => send_enter && app_settings.auto_send_enter,
+    };
+    send_paste(&app_settings.paste_method, effective_send_enter)?;
 
     #[cfg(target_os = "linux")]
     std::thread::sleep(std::time::Duration::from_millis(200));

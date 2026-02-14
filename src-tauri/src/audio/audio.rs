@@ -78,10 +78,21 @@ fn internal_record_audio(app: &AppHandle) {
 }
 
 pub fn stop_recording(app: &AppHandle) -> Option<std::path::PathBuf> {
+    stop_recording_with_options(app, false)
+}
+
+pub fn stop_recording_with_options(
+    app: &AppHandle,
+    _unused: bool,
+) -> Option<std::path::PathBuf> {
     debug!("Stopping audio recording...");
     let state = app.state::<AudioState>();
 
-    // Stop recorder
+    // Reset the invert signal so second click can set it
+    state.invert_enter_signal.store(false, std::sync::atomic::Ordering::SeqCst);
+    let invert_signal = state.invert_enter_signal.clone();
+
+    // Stop recorder immediately
     {
         let mut recorder_guard = state.recorder.lock();
         if let Some(recorder) = recorder_guard.as_mut() {
@@ -99,32 +110,32 @@ pub fn stop_recording(app: &AppHandle) -> Option<std::path::PathBuf> {
             .map(|dir| dir.join(&file_name))
             .ok();
 
-        if let Some(ref p) = path {
-            info!(
-                "Audio recording stopped; file written to temporary path: {}",
-                p.display()
-            );
-
-            // Process recording (Transcribe -> LLM -> History)
-            match process_recording(app, p) {
-                Ok(final_text) => {
-                    if let Err(e) = write_transcription(app, &final_text) {
-                        error!("Failed to use clipboard: {}", e);
-                    }
-                }
-                Err(e) => {
-                    error!("Processing failed: {}", e);
-                }
-            }
-        }
-
-        // Reset UI
+        // Reset UI immediately
         let _ = app.emit("mic-level", 0.0f32);
-        // Reset overlay mode to standard for next recording
         let _ = app.emit("overlay-mode", "standard");
         let s = crate::settings::load_settings(app);
         if s.overlay_mode.as_str() == "recording" {
             overlay::hide_recording_overlay(app);
+        }
+
+        if let Some(p) = path.clone() {
+            let app_clone = app.clone();
+            // Wait briefly for a possible second click before processing
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(350));
+                let invert = invert_signal.load(std::sync::atomic::Ordering::SeqCst);
+                info!("Processing recording (invert_send_enter={})", invert);
+                match process_recording(&app_clone, &p) {
+                    Ok(final_text) => {
+                        if let Err(e) = write_transcription(&app_clone, &final_text, invert) {
+                            error!("Failed to use clipboard: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Processing failed: {}", e);
+                    }
+                }
+            });
         }
 
         return path;
@@ -189,8 +200,35 @@ pub fn cancel_recording(app: &AppHandle) {
     });
 }
 
-pub fn write_transcription(app: &AppHandle, transcription: &str) -> Result<()> {
-    if let Err(e) = clipboard::paste(transcription, app) {
+pub fn write_transcription(app: &AppHandle, transcription: &str, invert_send_enter: bool) -> Result<()> {
+    let s = crate::settings::load_settings(app);
+    // Determine effective auto_send_enter for this paste
+    let effective_send_enter = if invert_send_enter {
+        !s.auto_send_enter
+    } else {
+        s.auto_send_enter
+    };
+
+    // Emit overlay feedback only on double-stop (inverted mode)
+    if invert_send_enter {
+        let mode_str = if effective_send_enter { "enter" } else { "no-enter" };
+        // Show overlay briefly for the animation
+        overlay::show_recording_overlay(app);
+        if let Some(overlay_win) = app.get_webview_window("recording_overlay") {
+            let _ = overlay_win.emit("overlay-paste-mode", mode_str);
+        }
+        let _ = app.emit("overlay-paste-mode", mode_str);
+        let app_clone = app.clone();
+        let overlay_mode = s.overlay_mode.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(700));
+            if overlay_mode.as_str() == "recording" {
+                overlay::hide_recording_overlay(&app_clone);
+            }
+        });
+    }
+
+    if let Err(e) = clipboard::paste_with_enter_override(transcription, app, effective_send_enter) {
         error!("Failed to paste text: {}", e);
     }
 

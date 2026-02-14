@@ -11,16 +11,21 @@ import { useTranslation } from '@/i18n';
 import { Onboarding } from '../onboarding/onboarding';
 import { RecordLabel } from '@/components/record-label';
 import { CancelVisualizer } from '@/overlay/cancel-visualizer';
+import { PasteVisualizer } from '@/overlay/paste-visualizer';
 import { listen } from '@tauri-apps/api/event';
 import { useEffect, useRef, useState } from 'react';
+
+type PasteMode = 'enter' | 'no-enter' | null;
 
 export const Home = () => {
     const { shortcut: recordShortcut } = useShortcut(SHORTCUT_CONFIGS.record);
     const [isCancelled, setIsCancelled] = useState(false);
+    const [pasteMode, setPasteMode] = useState<PasteMode>(null);
     const cancelTimerRef = useRef<number | null>(null);
+    const pasteTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
-        const unlistenPromise = listen('recording-cancelled', () => {
+        const unlistenCancelPromise = listen('recording-cancelled', () => {
             if (cancelTimerRef.current) clearTimeout(cancelTimerRef.current);
             setIsCancelled(true);
             cancelTimerRef.current = setTimeout(() => {
@@ -28,8 +33,30 @@ export const Home = () => {
                 cancelTimerRef.current = null;
             }, 700);
         });
-        return () => { unlistenPromise.then((unlisten) => unlisten()); };
+        const unlistenPasteModePromise = listen<string>('overlay-paste-mode', (event) => {
+            const mode = event.payload as PasteMode;
+            if (pasteTimerRef.current) clearTimeout(pasteTimerRef.current);
+            setPasteMode(mode);
+            pasteTimerRef.current = setTimeout(() => {
+                setPasteMode(null);
+                pasteTimerRef.current = null;
+            }, 700);
+        });
+        return () => {
+            unlistenCancelPromise.then((unlisten) => unlisten());
+            unlistenPasteModePromise.then((unlisten) => unlisten());
+        };
     }, []);
+
+    const renderVisualizer = () => {
+        if (isCancelled) {
+            return <CancelVisualizer bars={34} rows={21} pixelWidth={12} pixelHeight={6} />;
+        }
+        if (pasteMode) {
+            return <PasteVisualizer mode={pasteMode} bars={34} rows={21} pixelWidth={12} pixelHeight={6} />;
+        }
+        return <AudioVisualizer bars={34} rows={21} />;
+    };
 
     const { t } = useTranslation();
     return (
@@ -46,11 +73,7 @@ export const Home = () => {
                 <div className="space-y-2 flex flex-col items-center">
                     <Typography.Title>{t('Live input')}</Typography.Title>
                     <div className="rounded-md border border-zinc-700 p-2 space-y-4 relative">
-                        {isCancelled ? (
-                            <CancelVisualizer bars={34} rows={21} pixelWidth={12} pixelHeight={6} />
-                        ) : (
-                            <AudioVisualizer bars={34} rows={21} />
-                        )}
+                        {renderVisualizer()}
                         <RecordLabel />
                     </div>
                 </div>

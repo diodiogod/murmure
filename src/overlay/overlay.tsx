@@ -4,20 +4,24 @@ import { AudioVisualizer } from '@/features/home/audio-visualizer/audio-visualiz
 import { useLevelState } from '@/features/home/audio-visualizer/hooks/use-level-state';
 import type { LLMConnectSettings } from '@/features/llm-connect/hooks/use-llm-connect';
 import { CancelVisualizer } from './cancel-visualizer';
+import { PasteVisualizer } from './paste-visualizer';
 import clsx from 'clsx';
 
 type RecordingMode = 'standard' | 'llm' | 'command';
+type PasteMode = 'enter' | 'no-enter' | null;
 
 export const Overlay = () => {
     const [feedback, setFeedback] = useState<string | null>(null);
     const [isError, setIsError] = useState(false);
     const [isCancelled, setIsCancelled] = useState(false);
+    const [pasteMode, setPasteMode] = useState<PasteMode>(null);
     const [recordingMode, setRecordingMode] =
         useState<RecordingMode>('standard');
     const { level } = useLevelState();
     const [hasAudio, setHasAudio] = useState(false);
     const audioTimerRef = useRef<number | null>(null);
     const cancelTimerRef = useRef<number | null>(null);
+    const pasteTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
         if (hasAudio) return;
@@ -68,14 +72,20 @@ export const Overlay = () => {
             }
         });
         const unlistenCancelPromise = listen('recording-cancelled', () => {
-            // Clear any existing cancel timer
-            if (cancelTimerRef.current) {
-                clearTimeout(cancelTimerRef.current);
-            }
+            if (cancelTimerRef.current) clearTimeout(cancelTimerRef.current);
             setIsCancelled(true);
             cancelTimerRef.current = setTimeout(() => {
                 setIsCancelled(false);
                 cancelTimerRef.current = null;
+            }, 700);
+        });
+        const unlistenPasteModePromise = listen<string>('overlay-paste-mode', (event) => {
+            const mode = event.payload as PasteMode;
+            if (pasteTimerRef.current) clearTimeout(pasteTimerRef.current);
+            setPasteMode(mode);
+            pasteTimerRef.current = setTimeout(() => {
+                setPasteMode(null);
+                pasteTimerRef.current = null;
             }, 700);
         });
 
@@ -86,6 +96,7 @@ export const Overlay = () => {
             unlistenModePromise.then((unlisten) => unlisten());
             unlistenShowPromise.then((unlisten) => unlisten());
             unlistenCancelPromise.then((unlisten) => unlisten());
+            unlistenPasteModePromise.then((unlisten) => unlisten());
         };
     }, []);
 
@@ -113,6 +124,13 @@ export const Overlay = () => {
             return (
                 <div className="origin-center h-full p-1.5 flex items-center animate-in fade-in zoom-in duration-200">
                     <CancelVisualizer bars={14} rows={9} pixelWidth={2} pixelHeight={2} />
+                </div>
+            );
+        }
+        if (pasteMode) {
+            return (
+                <div className="origin-center h-full p-1.5 flex items-center animate-in fade-in zoom-in duration-200">
+                    <PasteVisualizer mode={pasteMode} bars={14} rows={9} pixelWidth={2} pixelHeight={2} />
                 </div>
             );
         }
