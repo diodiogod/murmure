@@ -178,10 +178,6 @@ fn start_recording<F>(
     info!("Started {:?} recording", target);
 }
 
-fn stop_recording(app: &AppHandle, recording_source: &mut RecordingSource) {
-    stop_recording_inverted(app, recording_source, false);
-}
-
 fn stop_recording_inverted(
     app: &AppHandle,
     recording_source: &mut RecordingSource,

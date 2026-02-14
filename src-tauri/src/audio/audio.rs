@@ -77,10 +77,6 @@ fn internal_record_audio(app: &AppHandle) {
     }
 }
 
-pub fn stop_recording(app: &AppHandle) -> Option<std::path::PathBuf> {
-    stop_recording_with_options(app, false)
-}
-
 pub fn stop_recording_with_options(
     app: &AppHandle,
     _unused: bool,

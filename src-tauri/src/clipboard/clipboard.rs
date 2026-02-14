@@ -4,10 +4,6 @@ use enigo::{Enigo, Key, Keyboard, Settings};
 use log::debug;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
-pub fn paste(text: &str, app_handle: &tauri::AppHandle) -> Result<(), String> {
-    paste_with_delay(text, app_handle, 100, true, None)
-}
-
 pub fn paste_with_enter_override(
     text: &str,
     app_handle: &tauri::AppHandle,
