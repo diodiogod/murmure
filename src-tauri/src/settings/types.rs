@@ -52,6 +52,8 @@ pub struct AppSettings {
     pub onboarding: OnboardingState,
     pub mic_id: Option<String>, // Optional microphone device ID
     pub log_level: String,      // "info" | "debug" | "trace" | "warn" | "error"
+    #[serde(default)]
+    pub auto_send_enter: bool, // Automatically send Enter after pasting transcription
 }
 
 impl Default for AppSettings {
@@ -80,6 +82,7 @@ impl Default for AppSettings {
             onboarding: OnboardingState::default(),
             mic_id: None,
             log_level: "info".to_string(),
+            auto_send_enter: false,
         }
     }
 }
