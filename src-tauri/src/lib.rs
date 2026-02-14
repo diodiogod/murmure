@@ -161,6 +161,8 @@ pub fn run() {
             set_command_shortcut,
             get_secondary_record_shortcut,
             set_secondary_record_shortcut,
+            get_cancel_recording_shortcut,
+            set_cancel_recording_shortcut,
             get_llm_mode_1_shortcut,
             set_llm_mode_1_shortcut,
             get_llm_mode_2_shortcut,
