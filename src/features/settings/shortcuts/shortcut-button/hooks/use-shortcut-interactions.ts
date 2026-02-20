@@ -23,6 +23,14 @@ const KEY_MAP: Record<string, string> = {
     ArrowRight: 'arrowright',
 };
 
+const MOUSE_BUTTON_MAP: Record<number, string> = {
+    0: 'mouse1',
+    1: 'mouse3',
+    2: 'mouse2',
+    3: 'mouse4',
+    4: 'mouse5',
+};
+
 export const useShortcutInteractions = (
     shortcut: string,
     saveShortcut: (shortcut: string) => void,
@@ -97,25 +105,26 @@ export const useShortcutInteractions = (
     };
 
     const onMouseDown = (e: MouseEvent) => {
+        const buttonName = MOUSE_BUTTON_MAP[e.button];
+        if (!buttonName) return;
+
         e.preventDefault();
         e.stopPropagation();
 
-        const mouseButtonMap: Record<number, string> = {
-            0: 'mouse1',
-            1: 'mouse3',
-            2: 'mouse2',
-            3: 'mouse4',
-            4: 'mouse5',
-        };
-
-        const mouseButton = mouseButtonMap[e.button];
-        if (mouseButton && !pressedKeysRef.current.has(mouseButton)) {
-            pressedKeysRef.current.add(mouseButton);
+        if (!pressedKeysRef.current.has(buttonName)) {
+            pressedKeysRef.current.add(buttonName);
             updateBinding();
         }
     };
 
-    const onContextMenu = (e: MouseEvent) => {
+    const onMouseUp = (e: MouseEvent) => {
+        if (MOUSE_BUTTON_MAP[e.button]) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    };
+
+    const onContextMenu = (e: Event) => {
         e.preventDefault();
         e.stopPropagation();
     };
@@ -128,12 +137,14 @@ export const useShortcutInteractions = (
         globalThis.addEventListener('keydown', onKeyDown, { capture: true });
         globalThis.addEventListener('keyup', onKeyUp, { capture: true });
         globalThis.addEventListener('mousedown', onMouseDown, { capture: true });
+        globalThis.addEventListener('mouseup', onMouseUp, { capture: true });
         globalThis.addEventListener('contextmenu', onContextMenu, { capture: true });
 
         return () => {
             globalThis.removeEventListener('keydown', onKeyDown, { capture: true });
             globalThis.removeEventListener('keyup', onKeyUp, { capture: true });
             globalThis.removeEventListener('mousedown', onMouseDown, { capture: true });
+            globalThis.removeEventListener('mouseup', onMouseUp, { capture: true });
             globalThis.removeEventListener('contextmenu', onContextMenu, { capture: true });
             invoke('resume_transcription').catch(() => {});
         };

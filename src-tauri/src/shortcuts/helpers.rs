@@ -67,11 +67,11 @@ fn key_name_to_vk(name: &str) -> Option<i32> {
         "arrowdown" | "down" => Some(0x28),
         "arrowleft" | "left" => Some(0x25),
         "arrowright" | "right" => Some(0x27),
-        "mouse1" | "lbutton" => Some(0x01),
-        "mouse2" | "rbutton" => Some(0x02),
-        "mouse3" | "mbutton" => Some(0x04),
-        "mouse4" | "xbutton1" => Some(0x05),
-        "mouse5" | "xbutton2" => Some(0x06),
+        "mouse1" | "mousebutton1" | "lbutton" => Some(0x01),
+        "mouse2" | "mousebutton2" | "rbutton" => Some(0x02),
+        "mouse3" | "mousebutton3" | "mbutton" => Some(0x04),
+        "mouse4" | "mousebutton4" | "xbutton1" => Some(0x05),
+        "mouse5" | "mousebutton5" | "xbutton2" => Some(0x06),
         _ => None,
     }
 }
