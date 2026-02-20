@@ -4,7 +4,7 @@ use anyhow::{Context, Error, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::Device;
 use hound::WavWriter;
-use log::{debug, error};
+use log::{debug, error, warn};
 use parking_lot::Mutex;
 use std::fs::File;
 use std::io::BufWriter;
@@ -75,10 +75,29 @@ impl AudioRecorder {
 
         // Check if we have a cached device (user selected a specific mic)
         if let Some(device) = audio_state.get_cached_device() {
-            if let Ok(desc) = device.description() {
-                debug!("Selected microphone: {} (cached)", desc.name());
+            if device.default_input_config().is_ok() {
+                if let Ok(desc) = device.description() {
+                    debug!("Selected microphone: {} (cached)", desc.name());
+                }
+                return Ok(device);
             }
-            return Ok(device);
+
+            warn!("Cached microphone unavailable, trying configured microphone/default fallback");
+
+            let settings = crate::settings::load_settings(&app);
+            if let Some(mic_id) = settings.mic_id {
+                if let Some(resolved) = crate::audio::microphone::resolve_input_device(&mic_id) {
+                    if resolved.default_input_config().is_ok() {
+                        if let Ok(desc) = resolved.description() {
+                            debug!("Selected microphone: {} (resolved from settings)", desc.name());
+                        }
+                        audio_state.set_cached_device(Some(resolved.clone()));
+                        return Ok(resolved);
+                    }
+                }
+            }
+
+            audio_state.set_cached_device(None);
         }
 
         // No cached device - use system default
@@ -138,6 +157,12 @@ fn build_stream(
         }
         cpal::SampleFormat::I32 => {
             build_stream_impl::<i32>(device, config, writer, app, limit_reached.clone())
+        }
+        cpal::SampleFormat::U16 => {
+            build_stream_impl::<u16>(device, config, writer, app, limit_reached.clone())
+        }
+        cpal::SampleFormat::U8 => {
+            build_stream_impl::<u8>(device, config, writer, app, limit_reached.clone())
         }
         f => Err(anyhow::anyhow!("Unsupported sample format: {:?}", f)),
     }
