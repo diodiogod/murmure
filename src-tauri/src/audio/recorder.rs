@@ -89,7 +89,10 @@ impl AudioRecorder {
                 if let Some(resolved) = crate::audio::microphone::resolve_input_device(&mic_id) {
                     if resolved.default_input_config().is_ok() {
                         if let Ok(desc) = resolved.description() {
-                            debug!("Selected microphone: {} (resolved from settings)", desc.name());
+                            debug!(
+                                "Selected microphone: {} (resolved from settings)",
+                                desc.name()
+                            );
                         }
                         audio_state.set_cached_device(Some(resolved.clone()));
                         return Ok(resolved);

@@ -69,7 +69,10 @@ fn looks_technical(value: &str) -> bool {
         return true;
     }
 
-    let alnum_count = trimmed.chars().filter(|c| c.is_ascii_alphanumeric()).count();
+    let alnum_count = trimmed
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .count();
     let hexish_count = trimmed
         .chars()
         .filter(|c| c.is_ascii_hexdigit() || *c == '-')
@@ -150,9 +153,7 @@ fn get_device_label(device: &cpal::Device, fallback_id: &str) -> String {
         let mut metadata_parts: Vec<String> = Vec::new();
         if let Some(manufacturer) = desc.manufacturer() {
             let manufacturer = manufacturer.trim();
-            if !manufacturer.is_empty()
-                && normalize_label_part(manufacturer) != name_normalized
-            {
+            if !manufacturer.is_empty() && normalize_label_part(manufacturer) != name_normalized {
                 metadata_parts.push(manufacturer.to_string());
             }
         }
@@ -202,9 +203,7 @@ pub fn resolve_input_device(identifier: &str) -> Option<cpal::Device> {
 
 pub fn get_mic_list() -> Vec<MicDevice> {
     let host = cpal::default_host();
-    let default_id = host
-        .default_input_device()
-        .and_then(|d| get_device_id(&d));
+    let default_id = host.default_input_device().and_then(|d| get_device_id(&d));
 
     match host.input_devices() {
         Ok(devices) => {

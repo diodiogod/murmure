@@ -15,6 +15,8 @@ pub struct AudioState {
     pub cached_device: Mutex<Option<Device>>,
     /// Set by second click within double-click window to invert send_enter
     pub invert_enter_signal: std::sync::Arc<AtomicBool>,
+    /// Tracks whether invert feedback was already shown on second click.
+    pub invert_feedback_shown_early: std::sync::Arc<AtomicBool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,6 +48,7 @@ impl AudioState {
             limit_reached: std::sync::Arc::new(AtomicBool::new(false)),
             cached_device: Mutex::new(None),
             invert_enter_signal: std::sync::Arc::new(AtomicBool::new(false)),
+            invert_feedback_shown_early: std::sync::Arc::new(AtomicBool::new(false)),
         }
     }
 

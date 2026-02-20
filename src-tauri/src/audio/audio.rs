@@ -77,15 +77,17 @@ fn internal_record_audio(app: &AppHandle) {
     }
 }
 
-pub fn stop_recording_with_options(
-    app: &AppHandle,
-    _unused: bool,
-) -> Option<std::path::PathBuf> {
+pub fn stop_recording_with_options(app: &AppHandle, _unused: bool) -> Option<std::path::PathBuf> {
     debug!("Stopping audio recording...");
     let state = app.state::<AudioState>();
 
     // Reset the invert signal so second click can set it
-    state.invert_enter_signal.store(false, std::sync::atomic::Ordering::SeqCst);
+    state
+        .invert_enter_signal
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    state
+        .invert_feedback_shown_early
+        .store(false, std::sync::atomic::Ordering::SeqCst);
     let invert_signal = state.invert_enter_signal.clone();
 
     // Stop recorder immediately
@@ -141,6 +143,35 @@ pub fn stop_recording_with_options(
     None
 }
 
+pub fn show_invert_feedback(app: &AppHandle) {
+    let s = crate::settings::load_settings(app);
+    let mode_str = if !s.auto_send_enter {
+        "enter"
+    } else {
+        "no-enter"
+    };
+
+    let state = app.state::<AudioState>();
+    state
+        .invert_feedback_shown_early
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+
+    overlay::show_recording_overlay(app);
+    if let Some(overlay_win) = app.get_webview_window("recording_overlay") {
+        let _ = overlay_win.emit("overlay-paste-mode", mode_str);
+    }
+    let _ = app.emit("overlay-paste-mode", mode_str);
+
+    // If overlay is not pinned in recording mode, keep feedback visible briefly then hide it.
+    if s.overlay_mode.as_str() != "recording" {
+        let app_clone = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(700));
+            overlay::hide_recording_overlay(&app_clone);
+        });
+    }
+}
+
 pub fn cancel_recording(app: &AppHandle) {
     debug!("Cancelling audio recording...");
     let state = app.state::<AudioState>();
@@ -166,7 +197,10 @@ pub fn cancel_recording(app: &AppHandle) {
             if let Err(e) = std::fs::remove_file(&file_path) {
                 warn!("Failed to delete cancelled recording file: {}", e);
             } else {
-                info!("Recording cancelled and file discarded: {}", file_path.display());
+                info!(
+                    "Recording cancelled and file discarded: {}",
+                    file_path.display()
+                );
             }
         }
     }
@@ -196,8 +230,16 @@ pub fn cancel_recording(app: &AppHandle) {
     });
 }
 
-pub fn write_transcription(app: &AppHandle, transcription: &str, invert_send_enter: bool) -> Result<()> {
+pub fn write_transcription(
+    app: &AppHandle,
+    transcription: &str,
+    invert_send_enter: bool,
+) -> Result<()> {
     let s = crate::settings::load_settings(app);
+    let state = app.state::<AudioState>();
+    let feedback_shown_early = state
+        .invert_feedback_shown_early
+        .swap(false, std::sync::atomic::Ordering::SeqCst);
     // Determine effective auto_send_enter for this paste
     let effective_send_enter = if invert_send_enter {
         !s.auto_send_enter
@@ -205,22 +247,26 @@ pub fn write_transcription(app: &AppHandle, transcription: &str, invert_send_ent
         s.auto_send_enter
     };
 
-    // Emit overlay feedback only on double-stop (inverted mode)
-    if invert_send_enter {
-        let mode_str = if effective_send_enter { "enter" } else { "no-enter" };
+    // Emit overlay feedback only on double-stop (inverted mode) if it was not already shown.
+    if invert_send_enter && !feedback_shown_early {
+        let mode_str = if effective_send_enter {
+            "enter"
+        } else {
+            "no-enter"
+        };
         // Show overlay briefly for the animation
         overlay::show_recording_overlay(app);
         if let Some(overlay_win) = app.get_webview_window("recording_overlay") {
             let _ = overlay_win.emit("overlay-paste-mode", mode_str);
         }
         let _ = app.emit("overlay-paste-mode", mode_str);
+    }
+
+    if invert_send_enter {
         let app_clone = app.clone();
-        let overlay_mode = s.overlay_mode.clone();
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(700));
-            if overlay_mode.as_str() == "recording" {
-                overlay::hide_recording_overlay(&app_clone);
-            }
+            overlay::hide_recording_overlay(&app_clone);
         });
     } else if s.overlay_mode.as_str() == "recording" {
         overlay::hide_recording_overlay(app);

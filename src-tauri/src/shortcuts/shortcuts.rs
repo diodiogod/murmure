@@ -123,7 +123,10 @@ fn handle_recording_event<F>(
                     if is_double {
                         info!("Double-click detected (PushToTalk): signalling invert send_enter");
                         let audio_state = app.state::<crate::audio::types::AudioState>();
-                        audio_state.invert_enter_signal.store(true, std::sync::atomic::Ordering::SeqCst);
+                        audio_state
+                            .invert_enter_signal
+                            .store(true, std::sync::atomic::Ordering::SeqCst);
+                        crate::audio::show_invert_feedback(app);
                         let mut last_stop = recording_state().last_stop_time.lock();
                         *last_stop = std::time::Instant::now() - Duration::from_secs(1);
                     }
@@ -150,7 +153,10 @@ fn handle_recording_event<F>(
                         // Double-click: signal the processing thread to invert send_enter
                         info!("Double-click detected: signalling invert send_enter");
                         let audio_state = app.state::<crate::audio::types::AudioState>();
-                        audio_state.invert_enter_signal.store(true, std::sync::atomic::Ordering::SeqCst);
+                        audio_state
+                            .invert_enter_signal
+                            .store(true, std::sync::atomic::Ordering::SeqCst);
+                        crate::audio::show_invert_feedback(app);
                         // Reset last_stop so a third click starts normally
                         let mut last_stop = recording_state().last_stop_time.lock();
                         *last_stop = std::time::Instant::now() - Duration::from_secs(1);
@@ -178,11 +184,7 @@ fn start_recording<F>(
     info!("Started {:?} recording", target);
 }
 
-fn stop_recording_inverted(
-    app: &AppHandle,
-    recording_source: &mut RecordingSource,
-    invert: bool,
-) {
+fn stop_recording_inverted(app: &AppHandle, recording_source: &mut RecordingSource, invert: bool) {
     let audio_state = app.state::<crate::audio::types::AudioState>();
     if audio_state.is_limit_reached() {
         let shortcut_state = app.state::<ShortcutState>();
