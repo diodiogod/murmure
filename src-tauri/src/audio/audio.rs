@@ -106,13 +106,10 @@ pub fn stop_recording_with_options(
             .map(|dir| dir.join(&file_name))
             .ok();
 
-        // Reset UI immediately
+        // Reset level immediately; keep overlay visible during processing for feedback animation.
         let _ = app.emit("mic-level", 0.0f32);
         let _ = app.emit("overlay-mode", "standard");
-        let s = crate::settings::load_settings(app);
-        if s.overlay_mode.as_str() == "recording" {
-            overlay::hide_recording_overlay(app);
-        }
+        let overlay_mode = crate::settings::load_settings(app).overlay_mode;
 
         if let Some(p) = path.clone() {
             let app_clone = app.clone();
@@ -129,6 +126,9 @@ pub fn stop_recording_with_options(
                     }
                     Err(e) => {
                         error!("Processing failed: {}", e);
+                        if overlay_mode.as_str() == "recording" {
+                            overlay::hide_recording_overlay(&app_clone);
+                        }
                     }
                 }
             });
@@ -222,6 +222,8 @@ pub fn write_transcription(app: &AppHandle, transcription: &str, invert_send_ent
                 overlay::hide_recording_overlay(&app_clone);
             }
         });
+    } else if s.overlay_mode.as_str() == "recording" {
+        overlay::hide_recording_overlay(app);
     }
 
     if let Err(e) = clipboard::paste_with_enter_override(transcription, app, effective_send_enter) {

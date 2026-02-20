@@ -74,3 +74,13 @@ When a developer asks for help, use your knowledge of these guidelines to provid
 
 - ✅ "Generate a new React component for the history feature named `TranscriptionItem`." -> _You should create `src/features/history/transcription-item/transcription-item.tsx` and ensure the component name is `TranscriptionItem`, following guideline 1.2._
 - ✅ "Review this Rust function. Does it follow the project's error handling guidelines?" -> _You should check for the use of `Result<T, E>` and the absence of `panic!`, as required by guideline 3.1._
+
+## 7. External Communication Approval
+
+Before posting any external communication (GitHub issue, PR, PR comment, discussion message, or similar), you **must**:
+
+- Draft the exact final message first.
+- Show it to the user.
+- Wait for explicit user approval before posting.
+
+This rule is mandatory for this repository.
