@@ -181,7 +181,29 @@ pub fn cancel_recording(app: &AppHandle) {
         }
     }
 
-    reset_recording_ui(app);
+    crate::audio::sound::play_sound(app, crate::audio::sound::Sound::CancelRecording);
+
+    let _ = app.emit("mic-level", 0.0f32);
+    let _ = app.emit("overlay-mode", "standard");
+
+    let s = crate::settings::load_settings(app);
+    let overlay_is_recording_mode = s.overlay_mode.as_str() == "recording";
+    overlay::show_recording_overlay(app);
+    if let Some(overlay_win) = app.get_webview_window("recording_overlay") {
+        let _ = overlay_win.emit("recording-cancelled", ());
+    }
+
+    let state = app.state::<AudioState>();
+    state.set_recording_trigger(RecordingTrigger::Keyboard);
+    let app_clone = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(700));
+        if overlay_is_recording_mode {
+            overlay::hide_recording_overlay(&app_clone);
+        }
+        crate::wake_word::resume_listener(&app_clone);
+    });
+
     info!("Recording cancelled by user");
 }
 

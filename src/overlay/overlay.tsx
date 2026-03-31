@@ -4,16 +4,19 @@ import { AudioVisualizer } from '@/features/home/audio-visualizer/audio-visualiz
 import { useLevelState } from '@/features/home/audio-visualizer/hooks/use-level-state';
 import type { LLMConnectSettings } from '@/features/personalize/llm-connect/hooks/use-llm-connect';
 import clsx from 'clsx';
+import { CancelVisualizer } from './cancel-visualizer';
 
 type RecordingMode = 'standard' | 'llm' | 'command';
 
 export const Overlay = () => {
     const [feedback, setFeedback] = useState<string | null>(null);
     const [isError, setIsError] = useState(false);
+    const [isCancelled, setIsCancelled] = useState(false);
     const [recordingMode, setRecordingMode] = useState<RecordingMode>('standard');
     const { level } = useLevelState();
     const [hasAudio, setHasAudio] = useState(false);
     const audioTimerRef = useRef<number | null>(null);
+    const cancelTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
         if (hasAudio) return;
@@ -63,6 +66,16 @@ export const Overlay = () => {
                 audioTimerRef.current = null;
             }
         });
+        const unlistenCancelPromise = listen('recording-cancelled', () => {
+            if (cancelTimerRef.current != null) {
+                clearTimeout(cancelTimerRef.current);
+            }
+            setIsCancelled(true);
+            cancelTimerRef.current = setTimeout(() => {
+                setIsCancelled(false);
+                cancelTimerRef.current = null;
+            }, 700);
+        });
 
         return () => {
             unlistenPromise.then((unlisten) => unlisten());
@@ -71,6 +84,7 @@ export const Overlay = () => {
             unlistenRecordingErrorPromise.then((unlisten) => unlisten());
             unlistenModePromise.then((unlisten) => unlisten());
             unlistenShowPromise.then((unlisten) => unlisten());
+            unlistenCancelPromise.then((unlisten) => unlisten());
         };
     }, []);
 
@@ -93,21 +107,17 @@ export const Overlay = () => {
         }
     };
 
-    return (
-        <div
-            className={clsx(
-                'w-20',
-                'h-7.5',
-                'rounded-sm',
-                recordingMode === 'llm' && 'bg-sky-950',
-                recordingMode === 'command' && 'bg-red-950',
-                recordingMode === 'standard' && 'bg-black',
-                'relative',
-                'select-none',
-                'overflow-hidden'
-            )}
-        >
-            {feedback ? (
+    const renderContent = () => {
+        if (isCancelled) {
+            return (
+                <div className="origin-center h-full p-1.5 flex items-center animate-in fade-in zoom-in duration-200">
+                    <CancelVisualizer bars={14} rows={9} pixelWidth={2} pixelHeight={2} />
+                </div>
+            );
+        }
+
+        if (feedback) {
+            return (
                 <span
                     className={clsx(
                         'text-[8px]',
@@ -128,23 +138,43 @@ export const Overlay = () => {
                 >
                     {feedback}
                 </span>
-            ) : (
-                <div className={clsx('origin-center', 'h-[20px]', 'mt-1', 'p-1.5', 'overflow-hidden')}>
-                    {hasAudio ? (
-                        <AudioVisualizer
-                            className="-mt-3"
-                            bars={14}
-                            rows={9}
-                            audioPixelWidth={2}
-                            audioPixelHeight={2}
-                        />
-                    ) : (
-                        <span className="text-white text-[8px] flex items-center justify-center h-full">
-                            {getModeLabel(recordingMode)}
-                        </span>
-                    )}
-                </div>
+            );
+        }
+
+        return (
+            <div className={clsx('origin-center', 'h-[20px]', 'mt-1', 'p-1.5', 'overflow-hidden')}>
+                {hasAudio ? (
+                    <AudioVisualizer
+                        className="-mt-3"
+                        bars={14}
+                        rows={9}
+                        audioPixelWidth={2}
+                        audioPixelHeight={2}
+                    />
+                ) : (
+                    <span className="text-white text-[8px] flex items-center justify-center h-full">
+                        {getModeLabel(recordingMode)}
+                    </span>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div
+            className={clsx(
+                'w-20',
+                'h-7.5',
+                'rounded-sm',
+                recordingMode === 'llm' && !isCancelled && 'bg-sky-950',
+                recordingMode === 'command' && !isCancelled && 'bg-red-950',
+                (recordingMode === 'standard' || isCancelled) && 'bg-black',
+                'relative',
+                'select-none',
+                'overflow-hidden'
             )}
+        >
+            {renderContent()}
         </div>
     );
 };
