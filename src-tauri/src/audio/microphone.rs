@@ -1,6 +1,6 @@
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::SampleFormat;
-use log::{debug, info, warn};
+use log::{debug, info};
 use std::collections::{HashMap, HashSet};
 use tauri::Manager;
 
@@ -27,10 +27,9 @@ pub fn get_mic_list() -> Vec<MicInfo> {
 pub fn resolve_device_for_recording(
     mic_id: &str,
 ) -> Result<(cpal::Device, Option<String>), anyhow::Error> {
-    let host = cpal::default_host();
-
     #[cfg(target_os = "linux")]
     {
+        let host = cpal::default_host();
         // Verify the source still exists before trying to use it
         if !is_pulse_source_available(mic_id) {
             return Err(anyhow::anyhow!("Selected microphone is unavailable"));
@@ -196,6 +195,9 @@ pub fn restore_default_source_after_recording(previous_source: Option<String>) {
         set_pulse_default_source(&source_name);
         info!("Restored PulseAudio default source: {}", source_name);
     }
+
+    #[cfg(not(target_os = "linux"))]
+    let _ = previous_source;
 }
 
 // ── CPAL-based enumeration (macOS/Windows fallback) ──
