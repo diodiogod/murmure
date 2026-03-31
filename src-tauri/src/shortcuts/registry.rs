@@ -18,6 +18,11 @@ impl ShortcutRegistry {
                 activation_mode: activation_mode.clone(),
             },
             ShortcutBinding {
+                keys: parse_binding_keys(&settings.secondary_record_shortcut),
+                action: ShortcutAction::StartRecordingSecondary,
+                activation_mode: activation_mode.clone(),
+            },
+            ShortcutBinding {
                 keys: parse_binding_keys(&settings.llm_record_shortcut),
                 action: ShortcutAction::StartRecordingLLM,
                 activation_mode: activation_mode.clone(),
@@ -91,6 +96,7 @@ impl ShortcutRegistryState {
         for binding in &mut registry.bindings {
             match binding.action {
                 ShortcutAction::StartRecording
+                | ShortcutAction::StartRecordingSecondary
                 | ShortcutAction::StartRecordingLLM
                 | ShortcutAction::StartRecordingCommand => {
                     binding.activation_mode = mode.clone();

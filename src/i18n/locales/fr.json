@@ -58,6 +58,8 @@
     "Can also press Enter for you after transcription.": "Envoie votre message après la dictée, idéal pour les chats.",
     "Cancel": "Annuler",
     "Cancel recording": "Annuler l'enregistrement",
+    "Secondary Record": "Enregistrement secondaire",
+    " (Supports mouse buttons: mousebutton2-mousebutton5)": " (Prend en charge les boutons de souris : mousebutton2-mousebutton5)",
     "Cannot delete the last mode": "Impossible de supprimer le dernier mode",
     "Check for updates": "Vérifier mises à jour",
     "Checking...": "Vérification...",

@@ -25,6 +25,7 @@ pub struct OnboardingState {
 #[serde(default)]
 pub struct AppSettings {
     pub record_shortcut: String,
+    pub secondary_record_shortcut: String,
     pub last_transcript_shortcut: String,
     pub llm_record_shortcut: String,
     pub command_shortcut: String,
@@ -63,6 +64,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             record_shortcut: "ctrl+space".to_string(),
+            secondary_record_shortcut: "mousebutton4".to_string(),
             last_transcript_shortcut: "ctrl+shift+space".to_string(),
             llm_record_shortcut: "ctrl+alt+space".to_string(),
             command_shortcut: "ctrl+shift+x".to_string(),

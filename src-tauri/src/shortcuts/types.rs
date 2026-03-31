@@ -11,6 +11,7 @@ pub enum KeyEventType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShortcutAction {
     StartRecording,
+    StartRecordingSecondary,
     StartRecordingLLM,
     StartRecordingCommand,
     PasteLastTranscript,
@@ -49,6 +50,7 @@ pub struct ShortcutState {
 pub enum RecordingSource {
     None,
     Standard,
+    Secondary,
     Llm,
     Command,
 }

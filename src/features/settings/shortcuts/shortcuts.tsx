@@ -18,6 +18,12 @@ export const Shortcuts = () => {
     } = useShortcut(SHORTCUT_CONFIGS.record);
 
     const {
+        shortcut: secondaryRecordShortcut,
+        setShortcut: setSecondaryRecordShortcut,
+        resetShortcut: resetSecondaryRecordShortcut,
+    } = useShortcut(SHORTCUT_CONFIGS.secondaryRecord);
+
+    const {
         shortcut: lastTranscriptShortcut,
         setShortcut: setLastTranscriptShortcut,
         resetShortcut: resetLastTranscriptShortcut,
@@ -101,6 +107,24 @@ export const Shortcuts = () => {
                                 saveShortcut={setRecordShortcut}
                                 resetShortcut={resetRecordShortcut}
                                 dataTestId={recordTestId}
+                            />
+                        </SettingsUI.Item>
+                        <SettingsUI.Separator />
+                        <SettingsUI.Item>
+                            <SettingsUI.Description>
+                                <Typography.Title>{t('Secondary Record')}</Typography.Title>
+                                <Typography.Paragraph>
+                                    {recordVerb} <RenderKeys keyString={secondaryRecordShortcut} />
+                                    {recordDescription}
+                                    {t(' (Supports mouse buttons: mousebutton2-mousebutton5)')}
+                                </Typography.Paragraph>
+                            </SettingsUI.Description>
+                            <ShortcutButton
+                                keyName={t('Secondary Record')}
+                                shortcut={secondaryRecordShortcut}
+                                saveShortcut={setSecondaryRecordShortcut}
+                                resetShortcut={resetSecondaryRecordShortcut}
+                                dataTestId="secondary-record-button"
                             />
                         </SettingsUI.Item>
                         <SettingsUI.Separator />

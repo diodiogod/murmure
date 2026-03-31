@@ -27,6 +27,16 @@ pub fn handle_shortcut_event(
                 || crate::audio::record_audio(app, RecordingMode::Standard),
             );
         }
+        ShortcutAction::StartRecordingSecondary => {
+            handle_recording_event(
+                app,
+                RecordingSource::Secondary,
+                mode,
+                event_type,
+                &shortcut_state,
+                || crate::audio::record_audio(app, RecordingMode::Standard),
+            );
+        }
         ShortcutAction::StartRecordingLLM => {
             handle_recording_event(
                 app,

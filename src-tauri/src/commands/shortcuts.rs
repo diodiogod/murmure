@@ -33,6 +33,34 @@ pub fn set_record_shortcut(app: AppHandle, binding: String) -> Result<String, St
 }
 
 // ============================================================================
+// Secondary Record Shortcut
+// ============================================================================
+
+#[command]
+pub fn get_secondary_record_shortcut(app: AppHandle) -> Result<String, String> {
+    let s = settings::load_settings(&app);
+    Ok(s.secondary_record_shortcut)
+}
+
+#[command]
+pub fn set_secondary_record_shortcut(app: AppHandle, binding: String) -> Result<String, String> {
+    let keys = parse_binding_keys(&binding);
+    if keys.is_empty() {
+        return Err("Invalid shortcut".to_string());
+    }
+    let normalized = keys_to_string(&keys);
+
+    let mut s = settings::load_settings(&app);
+    s.secondary_record_shortcut = normalized.clone();
+    settings::save_settings(&app, &s)?;
+
+    app.state::<ShortcutRegistryState>()
+        .update_binding(ShortcutAction::StartRecordingSecondary, keys);
+
+    Ok(normalized)
+}
+
+// ============================================================================
 // Last Transcript Shortcut
 // ============================================================================
 

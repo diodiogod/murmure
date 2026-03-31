@@ -241,6 +241,8 @@ pub fn run() {
             clear_history,
             get_record_shortcut,
             set_record_shortcut,
+            get_secondary_record_shortcut,
+            set_secondary_record_shortcut,
             set_dictionary,
             set_dictionary_with_languages,
             get_dictionary,
