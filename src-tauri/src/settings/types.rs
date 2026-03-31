@@ -42,8 +42,9 @@ pub struct AppSettings {
     pub api_port: u16,             // Port for local HTTP API
     pub copy_to_clipboard: bool,   // Keep transcription in clipboard after recording finishes
     pub paste_method: PasteMethod, // Paste method: CtrlV or CtrlShiftV (for terminals)
-    pub persist_history: bool,     // Persist last 5 transcriptions to disk
-    pub language: String,          // UI language code (e.g., "en", "fr")
+    pub auto_send_enter: bool, // Automatically press Enter after keyboard-triggered transcription
+    pub persist_history: bool, // Persist last 5 transcriptions to disk
+    pub language: String,      // UI language code (e.g., "en", "fr")
     pub sound_enabled: bool,
     pub onboarding: OnboardingState,
     pub cancel_shortcut: String,   // Shortcut to cancel active recording
@@ -80,6 +81,7 @@ impl Default for AppSettings {
             api_port: 4800,
             copy_to_clipboard: false,
             paste_method: PasteMethod::default(),
+            auto_send_enter: false,
             persist_history: false,
             language: "default".to_string(),
             sound_enabled: true,

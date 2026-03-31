@@ -420,13 +420,7 @@ fn listener_loop(
                                 text,
                                 normalized
                             );
-                            if try_handle_wake_word(
-                                app,
-                                &text,
-                                &normalized,
-                                entries,
-                                "early",
-                            ) {
+                            if try_handle_wake_word(app, &text, &normalized, entries, "early") {
                                 // Wake word detected early, drain pending
                                 // segments to avoid duplicate triggers
                                 while rx.try_recv().is_ok() {}
@@ -702,9 +696,7 @@ fn trigger_recording(app: &AppHandle, mode: RecordingMode) {
 }
 
 fn trigger_validate(app: &AppHandle) {
-    // Set trigger to Keyboard so auto-enter in write_transcription won't double-fire
     let audio_state = app.state::<AudioState>();
-    audio_state.set_recording_trigger(RecordingTrigger::Keyboard);
 
     // Set the wake word to strip from the transcription
     let settings = crate::settings::load_settings(app);

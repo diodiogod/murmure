@@ -107,7 +107,26 @@ fn handle_recording_event<F>(
             }
             KeyEventType::Released => {
                 if *recording_source == target {
-                    stop_recording(app, &mut recording_source);
+                    {
+                        let mut last_stop = recording_state().last_stop_time.lock();
+                        *last_stop = std::time::Instant::now();
+                    }
+                    stop_recording_inverted(app, &mut recording_source, false);
+                } else if *recording_source == RecordingSource::None {
+                    let is_double = {
+                        let last_stop = recording_state().last_stop_time.lock();
+                        last_stop.elapsed() < Duration::from_millis(350)
+                    };
+                    if is_double {
+                        info!("Double-click detected (PushToTalk): invert send-enter");
+                        let audio_state = app.state::<crate::audio::types::AudioState>();
+                        audio_state
+                            .invert_enter_signal
+                            .store(true, std::sync::atomic::Ordering::SeqCst);
+                        crate::audio::show_invert_feedback(app);
+                        let mut last_stop = recording_state().last_stop_time.lock();
+                        *last_stop = std::time::Instant::now() - Duration::from_secs(1);
+                    }
                 }
             }
         },
@@ -115,9 +134,28 @@ fn handle_recording_event<F>(
             if event_type == KeyEventType::Released {
                 if *recording_source == target {
                     shortcut_state.set_toggled(false);
-                    stop_recording(app, &mut recording_source);
+                    {
+                        let mut last_stop = recording_state().last_stop_time.lock();
+                        *last_stop = std::time::Instant::now();
+                    }
+                    stop_recording_inverted(app, &mut recording_source, false);
                     *recording_state().last_toggle_stop.lock() = std::time::Instant::now();
                 } else if *recording_source == RecordingSource::None {
+                    let is_double = {
+                        let last_stop = recording_state().last_stop_time.lock();
+                        last_stop.elapsed() < Duration::from_millis(350)
+                    };
+                    if is_double {
+                        info!("Double-click detected (ToggleToTalk): invert send-enter");
+                        let audio_state = app.state::<crate::audio::types::AudioState>();
+                        audio_state
+                            .invert_enter_signal
+                            .store(true, std::sync::atomic::Ordering::SeqCst);
+                        crate::audio::show_invert_feedback(app);
+                        let mut last_stop = recording_state().last_stop_time.lock();
+                        *last_stop = std::time::Instant::now() - Duration::from_secs(1);
+                        return;
+                    }
                     // Guard against X11 auto-repeat: after a stop, queued synthetic
                     // Release events can arrive within milliseconds and would
                     // immediately restart recording. 500ms cooldown prevents this.
@@ -149,7 +187,7 @@ fn start_recording<F>(
     info!("Started {:?} recording", target);
 }
 
-fn stop_recording(app: &AppHandle, recording_source: &mut RecordingSource) {
+fn stop_recording_inverted(app: &AppHandle, recording_source: &mut RecordingSource, invert: bool) {
     let audio_state = app.state::<crate::audio::types::AudioState>();
     if audio_state.is_limit_reached() {
         // Reset toggle state when limit is reached (relevant for ToggleToTalk mode).
@@ -158,9 +196,9 @@ fn stop_recording(app: &AppHandle, recording_source: &mut RecordingSource) {
         let shortcut_state = app.state::<ShortcutState>();
         shortcut_state.set_toggled(false);
     }
-    let _ = crate::audio::stop_recording(app);
+    let _ = crate::audio::stop_recording_with_options(app, invert);
     *recording_source = RecordingSource::None;
-    info!("Stopped recording");
+    info!("Stopped recording (invert_send_enter={})", invert);
 }
 
 pub fn force_stop_recording(app: &AppHandle) {
@@ -170,7 +208,7 @@ pub fn force_stop_recording(app: &AppHandle) {
         let mut recording_source = recording_state().source.lock();
         *recording_source = RecordingSource::None;
     }
-    let _ = crate::audio::stop_recording(app);
+    let _ = crate::audio::stop_recording_with_options(app, false);
 }
 
 pub fn force_cancel_recording(app: &AppHandle) {

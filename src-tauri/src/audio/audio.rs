@@ -95,10 +95,22 @@ fn internal_record_audio(app: &AppHandle) {
 }
 
 pub fn stop_recording(app: &AppHandle) -> Option<std::path::PathBuf> {
+    stop_recording_with_options(app, false)
+}
+
+pub fn stop_recording_with_options(
+    app: &AppHandle,
+    invert_send_enter: bool,
+) -> Option<std::path::PathBuf> {
     debug!("Stopping audio recording...");
     let state = app.state::<AudioState>();
 
-    // Stop recorder
+    state
+        .invert_feedback_shown_early
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    let invert_signal = state.invert_enter_signal.clone();
+    invert_signal.store(invert_send_enter, std::sync::atomic::Ordering::SeqCst);
+
     {
         let mut recorder_guard = state.recorder.lock();
         if let Some(recorder) = recorder_guard.as_mut() {
@@ -110,27 +122,39 @@ pub fn stop_recording(app: &AppHandle) -> Option<std::path::PathBuf> {
     }
 
     let file_name_opt = state.current_file_name.lock().take();
-    let mut path = None;
+    let path = file_name_opt.and_then(|file_name| {
+        ensure_recordings_dir(app)
+            .map(|dir| dir.join(file_name))
+            .ok()
+    });
 
-    if let Some(file_name) = file_name_opt {
-        path = ensure_recordings_dir(app)
-            .map(|dir| dir.join(&file_name))
-            .ok();
+    if let Some(path_buf) = path.clone() {
+        info!(
+            "Audio recording stopped; file written to temporary path: {}",
+            path_buf.display()
+        );
 
-        if let Some(ref p) = path {
-            info!(
-                "Audio recording stopped; file written to temporary path: {}",
-                p.display()
-            );
+        let _ = app.emit("mic-level", 0.0f32);
+        let _ = app.emit("overlay-mode", "standard");
 
-            // Process recording (Transcribe -> LLM -> History)
-            match process_recording(app, p) {
+        let overlay_mode = crate::settings::load_settings(app).overlay_mode;
+        let app_clone = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(350));
+            let invert = invert_signal.load(std::sync::atomic::Ordering::SeqCst);
+            info!("Processing recording (invert_send_enter={})", invert);
+
+            match process_recording(&app_clone, &path_buf) {
                 Ok(final_text) => {
+                    let state = app_clone.state::<AudioState>();
                     let text = match state.strip_word.lock().take() {
                         Some(word) => {
                             let stripped = strip_trailing_wake_word(&final_text, &word);
                             if stripped != final_text {
-                                if let Err(e) = crate::history::update_last_transcription(app, stripped.clone()) {
+                                if let Err(e) = crate::history::update_last_transcription(
+                                    &app_clone,
+                                    stripped.clone(),
+                                ) {
                                     error!("Failed to update history after wake word strip: {}", e);
                                 }
                             }
@@ -138,20 +162,30 @@ pub fn stop_recording(app: &AppHandle) -> Option<std::path::PathBuf> {
                         }
                         None => final_text,
                     };
-                    if let Err(e) = write_transcription(app, &text) {
+
+                    if let Err(e) = write_transcription(&app_clone, &text, invert) {
                         error!("Failed to use clipboard: {}", e);
                     }
                 }
                 Err(e) => {
                     error!("Processing failed: {}", e);
+                    if overlay_mode.as_str() == "recording" {
+                        overlay::hide_recording_overlay(&app_clone);
+                    }
+                    reset_recording_ui(&app_clone);
                 }
             }
-        }
+
+            let state = app_clone.state::<AudioState>();
+            state
+                .invert_enter_signal
+                .store(false, std::sync::atomic::Ordering::SeqCst);
+        });
     } else {
         debug!("Recording stopped (no active file)");
+        reset_recording_ui(app);
     }
 
-    reset_recording_ui(app);
     path
 }
 
@@ -219,25 +253,78 @@ fn reset_recording_ui(app: &AppHandle) {
     crate::wake_word::resume_listener(app);
 }
 
-pub fn write_transcription(app: &AppHandle, transcription: &str) -> Result<()> {
+pub fn show_invert_feedback(app: &AppHandle) {
+    let settings = crate::settings::load_settings(app);
+    let mode_str = if settings.auto_send_enter {
+        "no-enter"
+    } else {
+        "enter"
+    };
+
+    let state = app.state::<AudioState>();
+    state
+        .invert_feedback_shown_early
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+
+    overlay::show_recording_overlay(app);
+    if let Some(overlay_win) = app.get_webview_window("recording_overlay") {
+        let _ = overlay_win.emit("overlay-paste-mode", mode_str);
+    }
+    let _ = app.emit("overlay-paste-mode", mode_str);
+
+    if settings.overlay_mode.as_str() != "recording" {
+        let app_clone = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(700));
+            overlay::hide_recording_overlay(&app_clone);
+        });
+    }
+}
+
+pub fn write_transcription(
+    app: &AppHandle,
+    transcription: &str,
+    invert_send_enter: bool,
+) -> Result<()> {
+    let settings = crate::settings::load_settings(app);
     let state = app.state::<AudioState>();
     let trigger = state.get_recording_trigger();
-    let mode = state.get_recording_mode();
+    let feedback_shown_early = state
+        .invert_feedback_shown_early
+        .swap(false, std::sync::atomic::Ordering::SeqCst);
+    let effective_send_enter = if trigger == RecordingTrigger::WakeWord {
+        false
+    } else if invert_send_enter {
+        !settings.auto_send_enter
+    } else {
+        settings.auto_send_enter
+    };
 
-    if let Err(e) = clipboard::paste(transcription, app) {
-        error!("Failed to paste text: {}", e);
+    if invert_send_enter && !feedback_shown_early {
+        let mode_str = if effective_send_enter {
+            "enter"
+        } else {
+            "no-enter"
+        };
+        overlay::show_recording_overlay(app);
+        if let Some(overlay_win) = app.get_webview_window("recording_overlay") {
+            let _ = overlay_win.emit("overlay-paste-mode", mode_str);
+        }
+        let _ = app.emit("overlay-paste-mode", mode_str);
     }
 
-    // Auto-enter: only for wake word trigger, non-Command mode, when setting enabled
-    if trigger == RecordingTrigger::WakeWord && mode != RecordingMode::Command {
-        let settings = crate::settings::load_settings(app);
-        if settings.auto_enter_after_wake_word {
-            if let Err(e) = simulate_enter_key() {
-                error!("Failed to simulate Enter key: {}", e);
-            } else {
-                debug!("Auto-enter: Enter key simulated after wake word transcription");
-            }
-        }
+    if invert_send_enter {
+        let app_clone = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(700));
+            overlay::hide_recording_overlay(&app_clone);
+        });
+    } else if settings.overlay_mode.as_str() == "recording" {
+        overlay::hide_recording_overlay(app);
+    }
+
+    if let Err(e) = clipboard::paste_with_enter_override(transcription, app, effective_send_enter) {
+        error!("Failed to paste text: {}", e);
     }
 
     if let Err(e) = cleanup_recordings(app) {
