@@ -17,6 +17,9 @@ use tauri::{AppHandle, Emitter, Manager};
 pub fn record_audio(app: &AppHandle, mode: RecordingMode) {
     let state = app.state::<AudioState>();
     state.set_recording_mode(mode);
+    state
+        .force_enter_after_transcription
+        .store(false, std::sync::atomic::Ordering::SeqCst);
     if state.get_recording_trigger() != RecordingTrigger::WakeWord {
         state.set_recording_trigger(RecordingTrigger::Keyboard);
     }
@@ -192,6 +195,9 @@ pub fn stop_recording_with_options(
 pub fn cancel_recording(app: &AppHandle) {
     info!("Cancelling audio recording...");
     let state = app.state::<AudioState>();
+    state
+        .force_enter_after_transcription
+        .store(false, std::sync::atomic::Ordering::SeqCst);
 
     // Stop recorder without processing
     {
@@ -243,6 +249,9 @@ pub fn cancel_recording(app: &AppHandle) {
 
 fn reset_recording_ui(app: &AppHandle) {
     let state = app.state::<AudioState>();
+    state
+        .force_enter_after_transcription
+        .store(false, std::sync::atomic::Ordering::SeqCst);
     let _ = app.emit("mic-level", 0.0f32);
     let _ = app.emit("overlay-mode", "standard");
     let s = crate::settings::load_settings(app);
@@ -289,11 +298,16 @@ pub fn write_transcription(
     let settings = crate::settings::load_settings(app);
     let state = app.state::<AudioState>();
     let trigger = state.get_recording_trigger();
+    let mode = state.get_recording_mode();
+    let force_enter_after_transcription = state
+        .force_enter_after_transcription
+        .swap(false, std::sync::atomic::Ordering::SeqCst);
     let feedback_shown_early = state
         .invert_feedback_shown_early
         .swap(false, std::sync::atomic::Ordering::SeqCst);
     let effective_send_enter = if trigger == RecordingTrigger::WakeWord {
-        false
+        mode != RecordingMode::Command
+            && (force_enter_after_transcription || settings.auto_enter_after_wake_word)
     } else if invert_send_enter {
         !settings.auto_send_enter
     } else {
@@ -336,22 +350,6 @@ pub fn write_transcription(
     debug!("Transcription written to clipboard {}", transcription);
     Ok(())
 }
-
-pub fn simulate_enter_key() -> Result<(), String> {
-    use enigo::{Enigo, Key, Keyboard, Settings};
-
-    let mut enigo = Enigo::new(&Settings::default())
-        .map_err(|e| format!("Failed to initialize Enigo: {}", e))?;
-
-    std::thread::sleep(std::time::Duration::from_millis(200));
-
-    enigo
-        .key(Key::Return, enigo::Direction::Click)
-        .map_err(|e| format!("Failed to press Enter: {}", e))?;
-
-    Ok(())
-}
-
 fn strip_trailing_wake_word(text: &str, wake_word: &str) -> String {
     let ww = wake_word.trim();
     if ww.is_empty() {

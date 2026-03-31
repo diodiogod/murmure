@@ -701,6 +701,9 @@ fn trigger_validate(app: &AppHandle) {
     // Set the wake word to strip from the transcription
     let settings = crate::settings::load_settings(app);
     *audio_state.strip_word.lock() = Some(settings.wake_word_validate);
+    audio_state
+        .force_enter_after_transcription
+        .store(true, std::sync::atomic::Ordering::SeqCst);
 
     let mut source = recording_state().source.lock();
     *source = RecordingSource::None;
@@ -708,12 +711,6 @@ fn trigger_validate(app: &AppHandle) {
 
     // Stop recording normally (transcribes + pastes, stripping the wake word)
     crate::audio::stop_recording(app);
-
-    // Simulate Enter after transcription
-    match crate::audio::simulate_enter_key() {
-        Ok(()) => info!("Enter key simulated by validate wake word"),
-        Err(e) => error!("Failed to simulate Enter key: {}", e),
-    }
 }
 
 fn trigger_cancel(app: &AppHandle) {

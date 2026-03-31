@@ -23,6 +23,8 @@ pub struct AudioState {
     pub cached_device: Mutex<Option<Device>>,
     /// Wake word to strip from the end of the transcription (set by validate trigger)
     pub strip_word: Mutex<Option<String>>,
+    /// Forces a single Enter key press after the next wake-word transcription completes
+    pub force_enter_after_transcription: std::sync::Arc<AtomicBool>,
     /// Set by a quick second shortcut release to invert auto-send-enter for one recording
     pub invert_enter_signal: std::sync::Arc<AtomicBool>,
     /// Tracks whether invert feedback was already shown before processing starts
@@ -75,6 +77,7 @@ impl AudioState {
             limit_reached: std::sync::Arc::new(AtomicBool::new(false)),
             cached_device: Mutex::new(None),
             strip_word: Mutex::new(None),
+            force_enter_after_transcription: std::sync::Arc::new(AtomicBool::new(false)),
             invert_enter_signal: std::sync::Arc::new(AtomicBool::new(false)),
             invert_feedback_shown_early: std::sync::Arc::new(AtomicBool::new(false)),
         }
