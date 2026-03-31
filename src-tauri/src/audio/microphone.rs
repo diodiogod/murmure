@@ -258,6 +258,23 @@ fn get_mic_list_cpal() -> Vec<MicInfo> {
 }
 
 fn is_valid_input_device(device: &cpal::Device) -> bool {
+    if let Ok(config) = device.default_input_config() {
+        let channels = config.channels();
+        let format = config.sample_format();
+        let valid_format = matches!(
+            format,
+            cpal::SampleFormat::I16
+                | cpal::SampleFormat::I32
+                | cpal::SampleFormat::F32
+                | cpal::SampleFormat::U16
+                | cpal::SampleFormat::U8
+        );
+
+        if channels >= 1 && valid_format {
+            return true;
+        }
+    }
+
     let configs = match device.supported_input_configs() {
         Ok(c) => c,
         Err(_) => return false,
@@ -267,10 +284,14 @@ fn is_valid_input_device(device: &cpal::Device) -> bool {
         let channels = config.channels();
         let format = config.sample_format();
 
-        let valid_channels = channels == 1 || channels == 2;
+        let valid_channels = channels >= 1;
         let valid_format = matches!(
             format,
-            cpal::SampleFormat::I16 | cpal::SampleFormat::I32 | cpal::SampleFormat::F32
+            cpal::SampleFormat::I16
+                | cpal::SampleFormat::I32
+                | cpal::SampleFormat::F32
+                | cpal::SampleFormat::U16
+                | cpal::SampleFormat::U8
         );
 
         if valid_channels && valid_format {
