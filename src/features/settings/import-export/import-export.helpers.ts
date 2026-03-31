@@ -74,6 +74,8 @@ export const extractSystemSettings = (all: AppSettings): SystemSettings => {
         copy_to_clipboard: all.copy_to_clipboard,
         paste_method: all.paste_method,
         auto_send_enter: all.auto_send_enter,
+        stop_on_silence_after_wake_word: all.stop_on_silence_after_wake_word,
+        silence_sensitivity: all.silence_sensitivity,
         persist_history: all.persist_history,
         language: all.language,
         sound_enabled: all.sound_enabled,

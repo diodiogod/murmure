@@ -15,11 +15,26 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
 const MAX_RECORDING_DURATION_SECS: u64 = 300; // 5 min
-const SILENCE_AUTO_STOP_THRESHOLD: f32 = 0.03;
-const SILENCE_AUTO_STOP_SPEECH_THRESHOLD: f32 = 0.03;
+const SILENCE_AUTO_STOP_GRACE_AFTER_SPEECH_MS: u64 = 1200;
 
 type WavWriterType = WavWriter<BufWriter<File>>;
 type SharedWriter = Arc<Mutex<Option<WavWriterType>>>;
+
+fn silence_threshold_from_sensitivity(sensitivity: u8) -> f32 {
+    match sensitivity.clamp(1, 10) {
+        1 => 0.004,
+        2 => 0.005,
+        3 => 0.0065,
+        4 => 0.008,
+        5 => 0.01,
+        6 => 0.012,
+        7 => 0.014,
+        8 => 0.016,
+        9 => 0.018,
+        10 => 0.02,
+        _ => 0.01,
+    }
+}
 
 // Wrapper to safely store Stream. Stream on macOS doesn't implement Send.
 pub struct SendStream(pub Option<cpal::Stream>);
@@ -220,10 +235,13 @@ where
 
     let is_wake_word = recording_trigger == RecordingTrigger::WakeWord;
     let settings = crate::settings::load_settings(&app);
+    let stop_on_silence_after_wake_word = settings.stop_on_silence_after_wake_word;
     let silence_auto_stop_ms = settings.silence_timeout_ms.clamp(500, 5000);
+    let silence_threshold = silence_threshold_from_sensitivity(settings.silence_sensitivity);
+    let silence_noise_floor = (silence_threshold * 0.35).max(0.0015);
     let mut silence_start: Option<std::time::Instant> = None;
     let mut silence_auto_stop_triggered = false;
-    let mut has_speech_started = false;
+    let auto_stop_armed_at = std::time::Instant::now();
 
     let app_handle = app.clone();
     let writer_clone = writer.clone();
@@ -275,7 +293,7 @@ where
                     // Normalize a bit and clamp
                     let mut level = (rms * 1.5).min(1.0);
                     // simple noise gate
-                    if level < 0.02 {
+                    if level < silence_noise_floor {
                         level = 0.0;
                     }
                     // EMA smoothing
@@ -286,38 +304,47 @@ where
                         let _ = overlay_window.emit("mic-level", ema_level);
                     }
 
-                    if is_wake_word && !silence_auto_stop_triggered {
-                        if rms >= SILENCE_AUTO_STOP_SPEECH_THRESHOLD {
-                            if !has_speech_started {
-                                info!("Wake word auto-stop: speech detected (rms={:.4})", rms);
+                    if is_wake_word
+                        && stop_on_silence_after_wake_word
+                        && !silence_auto_stop_triggered
+                    {
+                        if auto_stop_armed_at.elapsed()
+                            < std::time::Duration::from_millis(
+                                SILENCE_AUTO_STOP_GRACE_AFTER_SPEECH_MS,
+                            )
+                        {
+                            silence_start = None;
+                        } else if ema_level < silence_threshold {
+                            if silence_start.is_none() {
+                                silence_start = Some(std::time::Instant::now());
+                                trace!(
+                                    "Wake word auto-stop: silence started (level={:.4})",
+                                    ema_level
+                                );
                             }
-                            has_speech_started = true;
-                        }
-
-                        if has_speech_started {
-                            if rms < SILENCE_AUTO_STOP_THRESHOLD {
-                                if silence_start.is_none() {
-                                    silence_start = Some(std::time::Instant::now());
-                                    trace!("Wake word auto-stop: silence started (rms={:.4})", rms);
+                            if let Some(start) = silence_start {
+                                if start.elapsed()
+                                    >= std::time::Duration::from_millis(silence_auto_stop_ms)
+                                {
+                                    silence_auto_stop_triggered = true;
+                                    info!(
+                                        "Wake word auto-stop: stopping after {}ms silence",
+                                        silence_auto_stop_ms
+                                    );
+                                    let app = app_handle.clone();
+                                    std::thread::spawn(move || {
+                                        crate::shortcuts::force_stop_recording(&app);
+                                    });
                                 }
-                                if let Some(start) = silence_start {
-                                    if start.elapsed()
-                                        >= std::time::Duration::from_millis(silence_auto_stop_ms)
-                                    {
-                                        silence_auto_stop_triggered = true;
-                                        info!(
-                                            "Wake word auto-stop: stopping after {}ms silence",
-                                            silence_auto_stop_ms
-                                        );
-                                        let app = app_handle.clone();
-                                        std::thread::spawn(move || {
-                                            crate::shortcuts::force_stop_recording(&app);
-                                        });
-                                    }
-                                }
-                            } else {
-                                silence_start = None;
                             }
+                        } else {
+                            if silence_start.is_some() {
+                                trace!(
+                                    "Wake word auto-stop: silence cleared (level={:.4})",
+                                    ema_level
+                                );
+                            }
+                            silence_start = None;
                         }
                     }
 

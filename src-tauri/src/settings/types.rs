@@ -57,7 +57,9 @@ pub struct AppSettings {
     pub wake_word_cancel: String,
     pub wake_word_validate: String,
     pub auto_enter_after_wake_word: bool,
+    pub stop_on_silence_after_wake_word: bool,
     pub silence_timeout_ms: u64,
+    pub silence_sensitivity: u8,
     pub show_in_dock: bool,
 }
 
@@ -96,7 +98,9 @@ impl Default for AppSettings {
             wake_word_cancel: "alix cancel".to_string(),
             wake_word_validate: "alix validate".to_string(),
             auto_enter_after_wake_word: false,
+            stop_on_silence_after_wake_word: true,
             silence_timeout_ms: 1500,
+            silence_sensitivity: 5,
             show_in_dock: true,
         }
     }

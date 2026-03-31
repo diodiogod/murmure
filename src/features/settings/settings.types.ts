@@ -7,6 +7,8 @@ export interface SystemSettings {
     copy_to_clipboard: boolean;
     paste_method: string;
     auto_send_enter: boolean;
+    stop_on_silence_after_wake_word: boolean;
+    silence_sensitivity: number;
     persist_history: boolean;
     language: string;
     sound_enabled: boolean;

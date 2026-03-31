@@ -139,10 +139,38 @@ pub fn get_silence_timeout_ms(app: AppHandle) -> Result<u64, String> {
 }
 
 #[command]
+pub fn get_stop_on_silence_after_wake_word(app: AppHandle) -> Result<bool, String> {
+    let s = crate::settings::load_settings(&app);
+    Ok(s.stop_on_silence_after_wake_word)
+}
+
+#[command]
+pub fn set_stop_on_silence_after_wake_word(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut s = crate::settings::load_settings(&app);
+    s.stop_on_silence_after_wake_word = enabled;
+    crate::settings::save_settings(&app, &s)?;
+    Ok(())
+}
+
+#[command]
 pub fn set_silence_timeout_ms(app: AppHandle, value: u64) -> Result<(), String> {
     let clamped = value.clamp(500, 5000);
     let mut s = crate::settings::load_settings(&app);
     s.silence_timeout_ms = clamped;
+    crate::settings::save_settings(&app, &s)?;
+    Ok(())
+}
+
+#[command]
+pub fn get_silence_sensitivity(app: AppHandle) -> Result<u8, String> {
+    let s = crate::settings::load_settings(&app);
+    Ok(s.silence_sensitivity.clamp(1, 10))
+}
+
+#[command]
+pub fn set_silence_sensitivity(app: AppHandle, value: u8) -> Result<(), String> {
+    let mut s = crate::settings::load_settings(&app);
+    s.silence_sensitivity = value.clamp(1, 10);
     crate::settings::save_settings(&app, &s)?;
     Ok(())
 }

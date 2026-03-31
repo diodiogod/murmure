@@ -7,7 +7,9 @@ import { Mic } from 'lucide-react';
 import { useTranslation } from '@/i18n';
 import { useWakeWordEnabled } from './hooks/use-wake-word-enabled';
 import { useAutoEnter } from './hooks/use-auto-enter';
+import { useSilenceSensitivity } from './hooks/use-silence-sensitivity';
 import { useSilenceTimeout } from './hooks/use-silence-timeout';
+import { useStopOnSilence } from './hooks/use-stop-on-silence';
 import { useWakeWord, WAKE_WORD_CONFIGS } from './hooks/use-wake-word';
 import { VoiceTriggerItem } from './voice-trigger-item/voice-trigger-item';
 import { VoiceModeCta } from './voice-mode-cta/voice-mode-cta';
@@ -18,6 +20,8 @@ export const VoiceMode = () => {
     const validateDefaultWord = i18n.language?.startsWith('fr') ? 'merci alix' : 'alix validate';
     const { enabled, setEnabled } = useWakeWordEnabled();
     const { autoEnter, setAutoEnter } = useAutoEnter();
+    const { silenceSensitivity, setSilenceSensitivity } = useSilenceSensitivity();
+    const { stopOnSilence, setStopOnSilence } = useStopOnSilence();
     const { silenceTimeoutMs, setSilenceTimeoutMs } = useSilenceTimeout();
 
     const {
@@ -171,10 +175,26 @@ export const VoiceMode = () => {
                             <SettingsUI.Container>
                                 <SettingsUI.Item>
                                     <SettingsUI.Description>
+                                        <Typography.Title>{t('Stop on silence')}</Typography.Title>
+                                        <Typography.Paragraph>
+                                            {t(
+                                                'Automatically stop voice-triggered recording after a stable silence period. Disable this to keep recording until you say Validate, say Cancel, or stop manually.'
+                                            )}
+                                        </Typography.Paragraph>
+                                    </SettingsUI.Description>
+                                    <Switch
+                                        checked={stopOnSilence}
+                                        onCheckedChange={setStopOnSilence}
+                                        data-testid="stop-on-silence-toggle"
+                                    />
+                                </SettingsUI.Item>
+                                <SettingsUI.Separator />
+                                <SettingsUI.Item>
+                                    <SettingsUI.Description>
                                         <Typography.Title>{t('Silence timeout')}</Typography.Title>
                                         <Typography.Paragraph>
                                             {t(
-                                                'Duration of silence before automatically stopping voice-triggered recording.'
+                                                'Duration of stable silence before automatically stopping voice-triggered recording.'
                                             )}
                                         </Typography.Paragraph>
                                     </SettingsUI.Description>
@@ -188,6 +208,29 @@ export const VoiceMode = () => {
                                         formatValue={(v) => `${(v / 1000).toFixed(1)}s`}
                                         className="w-28"
                                         data-testid="silence-timeout-slider"
+                                        disabled={!stopOnSilence}
+                                    />
+                                </SettingsUI.Item>
+                                <SettingsUI.Separator />
+                                <SettingsUI.Item>
+                                    <SettingsUI.Description>
+                                        <Typography.Title>{t('Silence sensitivity')}</Typography.Title>
+                                        <Typography.Paragraph>
+                                            {t(
+                                                'Higher sensitivity treats quieter pauses as silence sooner. Lower sensitivity is more tolerant while you are still speaking softly.'
+                                            )}
+                                        </Typography.Paragraph>
+                                    </SettingsUI.Description>
+                                    <Slider
+                                        value={[silenceSensitivity]}
+                                        onValueChange={([value]) => setSilenceSensitivity(value)}
+                                        min={1}
+                                        max={10}
+                                        step={1}
+                                        showValue
+                                        className="w-28"
+                                        data-testid="silence-sensitivity-slider"
+                                        disabled={!stopOnSilence}
                                     />
                                 </SettingsUI.Item>
                                 <SettingsUI.Separator />
