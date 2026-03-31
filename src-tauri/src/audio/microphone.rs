@@ -294,7 +294,9 @@ fn is_relevant_device(device: &cpal::Device) -> bool {
 
     // On platforms with metadata (macOS/Windows), filter by type
     if device_type != DeviceType::Unknown || interface_type != InterfaceType::Unknown {
-        if matches!(device_type, DeviceType::Virtual | DeviceType::Tuner) {
+        // Virtual input devices are valid microphones on Windows
+        // (for example NVIDIA Broadcast / similar voice processing tools).
+        if matches!(device_type, DeviceType::Tuner) {
             return false;
         }
         if matches!(
